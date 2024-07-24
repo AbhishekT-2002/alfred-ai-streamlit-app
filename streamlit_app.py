@@ -7,12 +7,16 @@ import pdfplumber
 import re
 from textblob import TextBlob
 import requests
+from requests.exceptions import RequestException, HTTPError, Timeout
 
-# Load spaCy model
+# Load spaCy model with improved error handling
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
-    st.error("Spacy model not found. Please run 'python -m spacy download en_core_web_sm' to install it.")
+    st.error("spaCy model not found. Please run 'python -m spacy download en_core_web_sm' to install it.")
+    st.stop()
+except Exception as e:
+    st.error(f"An unexpected error occurred while loading spaCy model: {str(e)}")
     st.stop()
 
 # Initialize session state variables
@@ -33,7 +37,7 @@ if 'interaction_count' not in st.session_state:
 if 'user_name' not in st.session_state:
     st.session_state.user_name = ""
 if 'api_url' not in st.session_state:
-    st.session_state.api_url = "https://projected-fellowship-montreal-something.trycloudflare.com/v1/chat/completions"
+    st.session_state.api_url = "https://projected-fellowship-montreal-something.trycloudflare.com/v1"
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "welcome"
 
@@ -60,15 +64,22 @@ class Conversation:
                 self.api_url,
                 headers=self.headers,
                 json={"mode": "chat", "character": "Example", "messages": messages},
-                verify=False
+                verify=False,
+                timeout=10  # Added timeout
             )
-
+            response.raise_for_status()  # Raises HTTPError for bad responses
             response_data = response.json()
             assistant_response = {"role": "assistant", "content": response_data['choices'][0]['message']['content']}
             return assistant_response["content"]
+        except HTTPError as http_err:
+            st.error(f"HTTP error occurred: {http_err}")
+        except Timeout:
+            st.error("The request timed out. Please try again.")
+        except RequestException as req_err:
+            st.error(f"Request error occurred: {req_err}")
         except Exception as e:
-            st.error(f"An error occurred while processing your request: {str(e)}")
-            return None
+            st.error(f"An unexpected error occurred: {e}")
+        return None
 
     def get_tone_instruction(self):
         tone_map = {
@@ -80,8 +91,7 @@ class Conversation:
         return tone_map.get(st.session_state.response_tone, "")
 
 def clean_text(text):
-    text = re.sub(r'\s+', ' ', text)
-    return text
+    return re.sub(r'\s+', ' ', text).strip()
 
 def extract_text_from_pdf(file):
     try:
@@ -125,9 +135,9 @@ def format_entities_for_display(entities):
 
 def apply_color_map(df):
     def color_map(row):
-        return ['background-color: {}'.format(color) for color in row]
+        return ['background-color: {}'.format(row['Color'])]
 
-    return df.style.apply(color_map, subset=['Color'], axis=1)
+    return df.style.apply(color_map, axis=1)
 
 def get_table_download_link(df):
     csv = df.to_csv(index=False)
@@ -135,9 +145,13 @@ def get_table_download_link(df):
     return f'<a href="data:file/csv;base64,{b64}" download="named_entities.csv">Download CSV file</a>'
 
 def export_conversation():
-    conversation_data = json.dumps(st.session_state.message_list, indent=2)
-    b64 = base64.b64encode(conversation_data.encode()).decode()
-    return f'<a href="data:file/json;base64,{b64}" download="conversation_history.json">Download Conversation History</a>'
+    try:
+        conversation_data = json.dumps(st.session_state.message_list, indent=2)
+        b64 = base64.b64encode(conversation_data.encode()).decode()
+        return f'<a href="data:file/json;base64,{b64}" download="conversation_history.json">Download Conversation History</a>'
+    except Exception as e:
+        st.error(f"An error occurred while exporting conversation history: {str(e)}")
+        return ""
 
 def search_text(text, query):
     return [match.start() for match in re.finditer(re.escape(query), text, re.IGNORECASE)]
@@ -152,8 +166,12 @@ def display_search_results(text, query):
         st.write("No results found.")
 
 def analyze_sentiment(text):
-    blob = TextBlob(text)
-    return blob.sentiment
+    try:
+        blob = TextBlob(text)
+        return blob.sentiment
+    except Exception as e:
+        st.error(f"An error occurred while analyzing sentiment: {str(e)}")
+        return TextBlob("")
 
 def main():
     st.set_page_config(page_title="Alfred AI", layout="wide")
@@ -177,7 +195,9 @@ def welcome_page():
     if st.session_state.user_name == "" or st.session_state.api_url == "":
         st.write("Please enter your name and API URL to continue.")
         user_name = st.text_input("Enter your name:")
-        api_url = st.text_input("Enter your API BASE_URL:")+"/chat/completions"
+        api_url = st.text_input("Enter your API BASE_URL:", placeholder="https://never-gonna-give-you-up.com/v1")
+        api_url = api_url.strip()
+        api_url = api_url+"/chat/completions"
         if st.button("Continue"):
             if user_name and api_url:
                 st.session_state.user_name = user_name
@@ -215,7 +235,6 @@ def chat_page():
                 # Add the assistant's response to the message list
                 st.session_state.message_list.append({"role": "assistant", "content": answer})
                 st.experimental_rerun()
-
 
 def pdf_analysis_page():
     st.header("PDF Analysis")
