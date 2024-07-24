@@ -76,7 +76,7 @@ The application includes robust error handling for common issues such as network
 4. Submit a pull request.
 
 ## License
-This project is licensed under the MIT License - see the [The MIT License](https://opensource.org/license/mit)(LICENSE) file for details.
+This project is licensed under the MIT License - see the [The MIT License](https://opensource.org/license/mit) file for details.
 
 ## Acknowledgments
 Special thanks to the developers and communities of the libraries used in this project, including Streamlit, spaCy, TextBlob, and pdfplumber.
