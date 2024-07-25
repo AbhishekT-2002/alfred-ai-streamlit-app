@@ -37,9 +37,10 @@ if 'interaction_count' not in st.session_state:
 if 'user_name' not in st.session_state:
     st.session_state.user_name = ""
 if 'api_url' not in st.session_state:
-    st.session_state.api_url = "https://projected-fellowship-montreal-something.trycloudflare.com/v1"
+    st.session_state.api_url = "https://projected-fellowship-montreal-something.trycloudflare.com/v1/chat/completions"
 if 'current_page' not in st.session_state:
-    st.session_state.current_page = "welcome"
+    st.session_state.current_page = "general_chat"
+
 
 class Conversation:
     def __init__(self, api_url):
@@ -65,7 +66,7 @@ class Conversation:
                 headers=self.headers,
                 json={"mode": "chat", "character": "Example", "messages": messages},
                 verify=False,
-                timeout=10  # Added timeout
+                timeout=60  # Added timeout
             )
             response.raise_for_status()  # Raises HTTPError for bad responses
             response_data = response.json()
@@ -90,8 +91,10 @@ class Conversation:
         }
         return tone_map.get(st.session_state.response_tone, "")
 
+
 def clean_text(text):
     return re.sub(r'\s+', ' ', text).strip()
+
 
 def extract_text_from_pdf(file):
     try:
@@ -106,6 +109,7 @@ def extract_text_from_pdf(file):
         st.error(f"An error occurred while extracting text from the PDF: {str(e)}")
         return None
 
+
 def extract_entities(text):
     try:
         doc = nlp(text)
@@ -114,6 +118,7 @@ def extract_entities(text):
     except Exception as e:
         st.error(f"An error occurred while extracting entities: {str(e)}")
         return None
+
 
 def format_entities_for_display(entities):
     df = pd.DataFrame(entities, columns=['Entity', 'Type'])
@@ -133,16 +138,19 @@ def format_entities_for_display(entities):
     df['Color'] = df['Type'].map(color_map).fillna('black')
     return df
 
+
 def apply_color_map(df):
     def color_map(row):
         return ['background-color: {}'.format(color) for color in row]
 
     return df.style.apply(color_map, subset=['Color'], axis=1)
 
+
 def get_table_download_link(df):
     csv = df.to_csv(index=False)
     b64 = base64.b64encode(csv.encode()).decode()
     return f'<a href="data:file/csv;base64,{b64}" download="named_entities.csv">Download CSV file</a>'
+
 
 def export_conversation():
     try:
@@ -153,8 +161,10 @@ def export_conversation():
         st.error(f"An error occurred while exporting conversation history: {str(e)}")
         return ""
 
+
 def search_text(text, query):
     return [match.start() for match in re.finditer(re.escape(query), text, re.IGNORECASE)]
+
 
 def display_search_results(text, query):
     indices = search_text(text, query)
@@ -165,6 +175,7 @@ def display_search_results(text, query):
     else:
         st.write("No results found.")
 
+
 def analyze_sentiment(text):
     try:
         blob = TextBlob(text)
@@ -173,45 +184,26 @@ def analyze_sentiment(text):
         st.error(f"An error occurred while analyzing sentiment: {str(e)}")
         return TextBlob("")
 
+
 def main():
     st.set_page_config(page_title="Alfred AI", layout="wide")
     st.title('Alfred AI')
 
     # Sidebar for navigation
     st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Welcome", "General Chat", "PDF Analysis", "Settings"])
+    page = st.sidebar.radio("Go to", ["General Chat", "PDF Analysis", "Settings"])
 
-    if page == "Welcome":
-        welcome_page()
-    elif page == "General Chat":
+    if page == "General Chat":
         chat_page()
     elif page == "PDF Analysis":
         pdf_analysis_page()
     elif page == "Settings":
         settings_page()
 
-def welcome_page():
-    st.header("Welcome to Alfred AI")
-    if st.session_state.user_name == "" or st.session_state.api_url == "":
-        st.write("Please enter your name and API URL to continue.")
-        user_name = st.text_input("Enter your name:")
-        api_url = st.text_input("Enter your API BASE_URL:", placeholder="https://never-gonna-give-you-up.com/v1")
-        api_url = api_url.strip()
-        api_url = api_url+"/chat/completions"
-        if st.button("Continue"):
-            if user_name and api_url:
-                st.session_state.user_name = user_name
-                st.session_state.api_url = api_url
-                st.success(f"Welcome, {user_name}! API URL set. Please use the sidebar to navigate.")
-            else:
-                st.error("Name and API BASE_URL cannot be empty.")
-    else:
-        st.write(f"Welcome back, {st.session_state.user_name}!")
-        st.write("Use the sidebar to navigate through different features of Alfred AI.")
 
 def chat_page():
     st.header("General Chat with Alfred AI")
-    
+
     conversation = Conversation(api_url=st.session_state.api_url)
 
     for message in st.session_state.message_list:
@@ -227,7 +219,7 @@ def chat_page():
         with st.spinner('Thinking...'):
             # Add the new user message to the message list
             st.session_state.message_list.append({"role": "user", "content": prompt})
-            
+
             # Send the context and prompt to get the assistant's response
             answer = conversation.message(prompt, context="\n".join([msg['content'] for msg in st.session_state.message_list if msg['role'] == 'user']))
 
@@ -235,6 +227,7 @@ def chat_page():
                 # Add the assistant's response to the message list
                 st.session_state.message_list.append({"role": "assistant", "content": answer})
                 st.experimental_rerun()
+
 
 def pdf_analysis_page():
     st.header("PDF Analysis")
@@ -246,8 +239,9 @@ def pdf_analysis_page():
             st.session_state.pdf_text = pdf_text
             st.success("PDF text extracted successfully!")
 
-            tab1, tab2, tab3, tab4, tab5 = st.tabs(["Named Entities", "Extracted Text", "Search", "Sentiment Analysis", "Chat with PDF"])
-            
+            tab1, tab2, tab3, tab4, tab5 = st.tabs(
+                ["Named Entities", "Extracted Text", "Search", "Sentiment Analysis", "Chat with PDF"])
+
             with tab1:
                 entities = extract_entities(st.session_state.pdf_text)
                 if entities:
@@ -271,7 +265,7 @@ def pdf_analysis_page():
 
             with tab5:
                 conversation = Conversation(api_url=st.session_state.api_url)
-                
+
                 for message in st.session_state.pdf_message_list:
                     if message['role'] == 'user':
                         with st.chat_message("user"):
@@ -289,15 +283,19 @@ def pdf_analysis_page():
                             st.session_state.pdf_message_list.append({"role": "assistant", "content": answer})
                             st.experimental_rerun()
 
+
 def settings_page():
     st.header("Settings")
     tone_options = ["Neutral", "Friendly", "Formal", "Casual"]
-    st.session_state.response_tone = st.selectbox("Select Response Tone", tone_options, index=tone_options.index(st.session_state.response_tone))
+    st.session_state.response_tone = st.selectbox(
+        "Select Response Tone", tone_options, index=tone_options.index(st.session_state.response_tone))
 
     st.write("API Settings")
-    st.session_state.api_url = st.text_input("API URL", value=st.session_state.api_url)
+    st.session_state.api_url = st.text_input(
+        "API URL", value=st.session_state.api_url)
 
     st.markdown(export_conversation(), unsafe_allow_html=True)
+
 
 if __name__ == "__main__":
     main()
