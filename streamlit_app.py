@@ -37,7 +37,7 @@ if 'interaction_count' not in st.session_state:
 if 'user_name' not in st.session_state:
     st.session_state.user_name = ""
 if 'api_url' not in st.session_state:
-    st.session_state.api_url = "https://projected-fellowship-montreal-something.trycloudflare.com/v1/chat/completions"
+    st.session_state.api_url = "https://mega-cow-underground-luis.trycloudflare.com//v1/chat/completions"
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "general_chat"
 
