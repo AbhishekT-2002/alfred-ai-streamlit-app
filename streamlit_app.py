@@ -135,9 +135,9 @@ def format_entities_for_display(entities):
 
 def apply_color_map(df):
     def color_map(row):
-        return ['background-color: {}'.format(row['Color'])]
+        return ['background-color: {}'.format(color) for color in row]
 
-    return df.style.apply(color_map, axis=1)
+    return df.style.apply(color_map, subset=['Color'], axis=1)
 
 def get_table_download_link(df):
     csv = df.to_csv(index=False)
