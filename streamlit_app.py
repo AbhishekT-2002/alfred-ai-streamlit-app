@@ -8,10 +8,8 @@ import re
 from textblob import TextBlob
 import requests
 from requests.exceptions import RequestException, HTTPError, Timeout
-import speech_recognition as sr
-import streamlit_shortcuts
 
-# Load spaCy model
+# Load spaCy model with improved error handling
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
@@ -42,10 +40,7 @@ if 'api_url' not in st.session_state:
     st.session_state.api_url = "https://projected-fellowship-montreal-something.trycloudflare.com/v1/chat/completions"
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "general_chat"
-if 'voice_input_triggered' not in st.session_state:
-    st.session_state.voice_input_triggered = False
-if 'current_prompt' not in st.session_state:
-    st.session_state.current_prompt = ""
+
 
 class Conversation:
     def __init__(self, api_url):
@@ -206,31 +201,6 @@ def main():
         settings_page()
 
 
-def record_audio(duration=5):
-    r = sr.Recognizer()
-    with sr.Microphone() as source:
-        st.write("Listening... (Press Ctrl+Shift+Space again to stop)")
-        audio = r.record(source, duration=duration)
-
-    try:
-        text = r.recognize_google(audio)
-        return text
-    except sr.UnknownValueError:
-        st.error("Sorry, I couldn't understand the audio.")
-        return None
-    except sr.RequestError:
-        st.error("Sorry, there was an error with the speech recognition service.")
-        return None
-
-
-def handle_voice_input():
-    st.session_state.voice_input_triggered = True
-    prompt = record_audio()
-    if prompt:
-        st.session_state.current_prompt = prompt
-        st.experimental_rerun()
-
-
 def chat_page():
     st.header("General Chat with Alfred AI")
 
@@ -244,19 +214,7 @@ def chat_page():
             with st.chat_message("assistant"):
                 st.write(f"Alfred AI: {message['content']}")
 
-    streamlit_shortcuts.button(
-        "Voice Input",
-        on_click=handle_voice_input,
-        shortcut="Ctrl+Shift+Space"
-    )
-
-    prompt = st.chat_input("Type your message here or use voice input (Ctrl+Shift+Space)")
-
-    if st.session_state.voice_input_triggered:
-        prompt = st.session_state.get('current_prompt', '')
-        st.write(f"You said: {prompt}")
-        st.session_state.voice_input_triggered = False
-
+    prompt = st.chat_input("Type your message here")
     if prompt:
         with st.spinner('Thinking...'):
             # Add the new user message to the message list
@@ -282,9 +240,9 @@ def pdf_analysis_page():
             st.success("PDF text extracted successfully!")
 
             tab1, tab2, tab3, tab4, tab5 = st.tabs(
-                ["Chat with PDF", "Extracted Text", "Search", "Sentiment Analysis", "Named Entities"])
+                ["Named Entities", "Extracted Text", "Search", "Sentiment Analysis", "Chat with PDF"])
 
-            with tab5:
+            with tab1:
                 entities = extract_entities(st.session_state.pdf_text)
                 if entities:
                     entity_df = format_entities_for_display(entities)
@@ -305,7 +263,7 @@ def pdf_analysis_page():
                 sentiment = analyze_sentiment(st.session_state.pdf_text)
                 st.write(f"Sentiment Analysis:\nPolarity: {sentiment.polarity}\nSubjectivity: {sentiment.subjectivity}")
 
-            with tab1:
+            with tab5:
                 conversation = Conversation(api_url=st.session_state.api_url)
 
                 for message in st.session_state.pdf_message_list:
@@ -316,19 +274,7 @@ def pdf_analysis_page():
                         with st.chat_message("assistant"):
                             st.write(f"Alfred AI: {message['content']}")
 
-                streamlit_shortcuts.button(
-                    "Voice Input (PDF Chat)",
-                    on_click=handle_voice_input,
-                    shortcut="Ctrl+Shift+Space"
-                )
-
-                prompt = st.chat_input("Type your question here or use voice input (Ctrl+Shift+Space)")
-
-                if st.session_state.voice_input_triggered:
-                    prompt = st.session_state.get('current_prompt', '')
-                    st.write(f"You said: {prompt}")
-                    st.session_state.voice_input_triggered = False
-
+                prompt = st.chat_input("Type your question here")
                 if prompt:
                     with st.spinner('Thinking...'):
                         answer = conversation.message(prompt, st.session_state.pdf_text)
